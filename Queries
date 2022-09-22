@@ -1,0 +1,78 @@
+-- Ferramenta por Status --
+
+--SELECT * FROM OITM T0 WHERE  T0."U_SPS_PROD_Status" = [%0]
+
+SELECT 
+	T0."ItemCode" as "Ferramenta",
+	CASE 
+		WHEN T0."U_SPS_PROD_Status" = 1 THEN 'Indisponível'
+		WHEN T0."U_SPS_PROD_Status" = 2 THEN 'Disponível' 
+		WHEN T0."U_SPS_PROD_Status" = 3 THEN 'EmManutenção' 
+		WHEN T0."U_SPS_PROD_Status" = 4 THEN 'AtribuidaàOrdem' 
+		WHEN T0."U_SPS_PROD_Status" = 5 THEN 'Morta' 
+		ELSE 'NãoInformado'
+	END "Status"
+FROM
+	OITM T0
+WHERE
+	T0."U_SPS_PRVD_Ferramenta" = 'Y'
+	AND (T0."U_SPS_PROD_Status" = [%0] OR  [%0] = '')
+  
+  
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-- Ferramentas em condição de Nitretação --
+  
+  ----SELECT * FROM OOPR T0 WHERE T0."CloPrcnt" = [%0]
+
+
+SELECT
+	T0."ItemCode" as "CodigoItem",
+	---Vida Util
+	T0."U_SPS_PROD_VidaUtil" as "VidaUtilTotalFerramenta",
+	T0."U_SPS_PROD_UsoProducao" "TotalUsoFerramenta",
+	CAST((T0."U_SPS_PROD_UsoProducao" / T0."U_SPS_PROD_VidaUtil") * 100 AS DECIMAL(26,2)) || '%' as "%UsoVidaUtil",
+	------------
+
+	---Nitretacao
+	T0."U_SPS_PROD_LimiteNitretacao" as "LimiteNitFerramenta",
+	T0."U_SPS_PROD_UsoAtual" as "UsoAtualNitretacao",
+	CAST((T0."U_SPS_PROD_UsoAtual" / T0."U_SPS_PROD_LimiteNitretacao") * 100 AS DECIMAL(26,2)) || '%' as "%UsoNitAtual",
+	------------
+
+	T0."U_SPS_PROD_Nitretacao" || '/' || FLOOR(T0."U_SPS_PROD_VidaUtil" / T0."U_SPS_PROD_LimiteNitretacao") as "NoNitVsPlan"
+	
+FROM 
+	OITM T0 
+	
+WHERE 
+	"ItemType" = 'F' 
+	AND "U_SPS_PRVD_Ferramenta" = 'Y'
+	--AND "U_SPS_PROD_UsoAtual" > "U_SPS_PROD_LimiteNitretacao"
+	AND CAST((T0."U_SPS_PROD_UsoAtual" / T0."U_SPS_PROD_LimiteNitretacao") * 100 AS DECIMAL(26,2)) >= CASE WHEN [%0] <= 0 THEN 100 ELSE [%0] END
+  
+  
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  -- Paradas por Ferramenta --
+  
+  
+  --SELECT * FROM OWOR T0 WHERE T0."StartDate"  = [%0] AND T0."DueDate" =  [%1]
+
+SELECT 
+	T0."APLATZ_ID" as "Ferramenta",
+	T1."GRUNDINFO" as "Motivo",
+	COUNT(*) "NoInterrupcoes",
+	 [%0] as "Desde",
+	 [%1] as "Para"
+FROM
+	BEAS_APLATZ_STILLSTAND T0
+	INNER JOIN BEAS_STILLSTANDGRUND T1 ON T1."GRUNDID" = T0."GRUNDID"
+WHERE 
+	T0."RESOURCETYPE" = 'tool'
+	AND "DATUM_VON" BETWEEN [%0] AND [%1]
+GROUP BY 
+	T0."APLATZ_ID", 
+	T1."GRUNDINFO"
+ORDER BY
+	COUNT (*) DESC;
